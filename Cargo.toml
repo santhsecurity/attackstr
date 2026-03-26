@@ -1,0 +1,29 @@
+[package]
+exclude = ["target/"]
+name = "attackstr"
+version = "0.1.1"
+edition = "2021"
+rust-version = "1.70"
+license = "MIT"
+authors = ["Corum Collective LLC <engineering@corumcollective.com>"]
+repository = "https://github.com/santhsecurity/attackstr"
+description = "Grammar-based security payload generation — TOML-driven, composable, encoding-aware"
+readme = "README.md"
+keywords = ["security", "payloads", "fuzzing", "pentest", "vulnerability"]
+categories = ["development-tools::testing"]
+
+[features]
+default = []
+# Reserve support for compiled-in grammar bundles.
+# This feature is currently a no-op in this crate version until embedded
+# grammars are added, so enabling it is forward-compatible but has no effect.
+builtin-grammars = []
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+urlencoding = "2"
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"

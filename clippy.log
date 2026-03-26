@@ -1,0 +1,58 @@
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling serde_core v1.0.228
+   Compiling serde v1.0.228
+   Compiling libc v0.2.183
+    Checking equivalent v1.0.2
+    Checking hashbrown v0.16.1
+   Compiling thiserror v2.0.18
+   Compiling getrandom v0.4.2
+    Checking toml_write v0.1.2
+    Checking winnow v0.7.15
+   Compiling rustix v1.1.4
+    Checking linux-raw-sys v0.12.1
+    Checking cfg-if v1.0.4
+    Checking bitflags v2.11.0
+    Checking once_cell v1.21.4
+    Checking urlencoding v2.1.3
+    Checking fastrand v2.3.0
+    Checking indexmap v2.13.0
+    Checking tempfile v3.27.0
+   Compiling syn v2.0.117
+   Compiling serde_derive v1.0.228
+   Compiling thiserror-impl v2.0.18
+    Checking toml_datetime v0.6.11
+    Checking serde_spanned v0.6.9
+    Checking toml_edit v0.22.27
+    Checking toml v0.8.23
+    Checking attackstr v0.1.1 (/home/mukund-thiru/Santh/libs/attackstr)
+error: current MSRV (Minimum Supported Rust Version) is `1.70.0` but this item is stable since `1.73.0`
+   --> src/encoding.rs:349:53
+    |
+349 |     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    |                                                     ^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#incompatible_msrv
+    = note: `-D clippy::incompatible-msrv` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::incompatible_msrv)]`
+
+error: current MSRV (Minimum Supported Rust Version) is `1.70.0` but this item is stable since `1.87.0`
+   --> src/mutate.rs:235:31
+    |
+235 |             if (idx + offset).is_multiple_of(2) {
+    |                               ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#incompatible_msrv
+
+error: current MSRV (Minimum Supported Rust Version) is `1.70.0` but this item is stable since `1.74.0`
+   --> src/lib.rs:599:21
+    |
+599 |         Ok(Self::Io(std::io::Error::other(wire.message)))
+    |                     ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#incompatible_msrv
+
+error: could not compile `attackstr` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `attackstr` (lib test) due to 3 previous errors
