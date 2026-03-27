@@ -6,7 +6,27 @@ Generate attack strings from TOML grammars. You define contexts, techniques, var
 use attackstr::PayloadDb;
 
 let mut db = PayloadDb::new();
-db.load_dir("./grammars").unwrap();
+db.load_toml(
+    r#"
+[grammar]
+name = "inline-example"
+sink_category = "sql-injection"
+
+[[contexts]]
+name = "quoted"
+prefix = "'"
+suffix = " --"
+
+[[techniques]]
+name = "tautology"
+template = "{prefix} OR 1=1{suffix}"
+
+[[encodings]]
+name = "raw"
+transform = "identity"
+"#,
+)
+.unwrap();
 
 for payload in db.payloads("sql-injection") {
     println!("{}", payload.text);
