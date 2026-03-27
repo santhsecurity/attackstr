@@ -105,10 +105,10 @@ fn validate_techniques(grammar: &Grammar, name: &str, issues: &mut Vec<GrammarIs
     }
 
     for tech in &grammar.techniques {
-        if tech.template.is_empty() {
+        if tech.template.trim().is_empty() {
             issues.push(GrammarIssue {
                 grammar: name.into(),
-                level: IssueLevel::Warning,
+                level: IssueLevel::Error,
                 message: format!("technique '{}' has empty template", tech.name),
             });
         }
@@ -301,6 +301,28 @@ mod tests {
         assert!(issues
             .iter()
             .any(|i| i.level == IssueLevel::Warning && i.message.contains("no techniques")));
+    }
+
+    #[test]
+    fn empty_template_is_error() {
+        let g = Grammar {
+            meta: meta("test", "cat"),
+            contexts: vec![],
+            techniques: vec![Technique {
+                name: "blank".into(),
+                template: "   ".into(),
+                tags: vec![],
+                confidence: 1.0,
+                expected_pattern: None,
+            }],
+            encodings: vec![],
+            variables: HashMap::new(),
+        };
+
+        let issues = validate(&g);
+        assert!(issues
+            .iter()
+            .any(|i| i.level == IssueLevel::Error && i.message.contains("empty template")));
     }
 
     #[test]

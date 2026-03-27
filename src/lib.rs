@@ -87,6 +87,7 @@ pub use mutate::{
     mutate_sql_comments, mutate_unicode, mutate_whitespace,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
 pub use validate::{validate, GrammarIssue, IssueLevel};
 
@@ -144,9 +145,11 @@ pub trait PayloadSource {
 /// let mut source = StaticPayloads::new(payloads);
 /// assert_eq!(source.payloads("custom").len(), 1);
 /// ```
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StaticPayloads {
     payloads: Vec<Payload>,
+    #[serde(skip)]
+    category_ranges: BTreeMap<String, std::ops::Range<usize>>,
 }
 
 impl StaticPayloads {
@@ -174,7 +177,10 @@ impl StaticPayloads {
     #[must_use]
     pub fn new(mut payloads: Vec<Payload>) -> Self {
         sort_payloads_by_category(&mut payloads);
-        Self { payloads }
+        Self {
+            category_ranges: build_category_ranges(&payloads),
+            payloads,
+        }
     }
 
     /// Add a single payload to this source.
@@ -200,6 +206,7 @@ impl StaticPayloads {
     pub fn add(&mut self, payload: Payload) {
         self.payloads.push(payload);
         sort_payloads_by_category(&mut self.payloads);
+        self.category_ranges = build_category_ranges(&self.payloads);
     }
 
     /// Get all payloads regardless of category.
@@ -266,25 +273,12 @@ impl From<Vec<Payload>> for StaticPayloads {
 
 impl PayloadSource for StaticPayloads {
     fn payloads(&mut self, category: &str) -> &[Payload] {
-        sort_payloads_by_category(&mut self.payloads);
-
-        let count = self
-            .payloads
-            .iter()
-            .filter(|p| p.category == category)
-            .count();
-        // Find the range of payloads for this category
-        let start = self
-            .payloads
-            .iter()
-            .position(|p| p.category == category)
-            .unwrap_or(0);
-        let end = start + count;
-        if start < self.payloads.len() {
-            &self.payloads[start..end.min(self.payloads.len())]
-        } else {
-            &[]
+        if self.category_ranges.is_empty() && !self.payloads.is_empty() {
+            self.category_ranges = build_category_ranges(&self.payloads);
         }
+        self.category_ranges
+            .get(category)
+            .map_or(&[], |range| &self.payloads[range.clone()])
     }
 
     fn categories(&self) -> Vec<&str> {
@@ -305,6 +299,21 @@ impl PayloadSource for StaticPayloads {
     fn payload_count(&self) -> usize {
         self.payloads.len()
     }
+}
+
+fn build_category_ranges(payloads: &[Payload]) -> BTreeMap<String, std::ops::Range<usize>> {
+    let mut ranges = BTreeMap::new();
+    let mut start = 0;
+    while start < payloads.len() {
+        let category = payloads[start].category.clone();
+        let mut end = start + 1;
+        while end < payloads.len() && payloads[end].category == category {
+            end += 1;
+        }
+        ranges.insert(category, start..end);
+        start = end;
+    }
+    ranges
 }
 
 /// Configuration for payload generation behavior.
@@ -575,6 +584,14 @@ pub enum PayloadError {
         /// The parse error.
         source: Box<toml::de::Error>,
     },
+    /// Grammar parsed but failed semantic validation.
+    #[error("{message}", message = Self::grammar_validation_message(file, issues))]
+    GrammarValidation {
+        /// Which file failed.
+        file: String,
+        /// Structured validation issues collected for the grammar.
+        issues: Vec<GrammarIssue>,
+    },
     /// Failed to expand template placeholders in a grammar.
     #[error("{message}", message = Self::template_expansion_message(file, source))]
     TemplateExpansion {
@@ -586,6 +603,9 @@ pub enum PayloadError {
     /// Path is not a directory.
     #[error("path '{0}' is not a directory. Fix: pass a directory that contains `.toml` grammar files or update `grammar_dirs` in your config.")]
     NotADirectory(String),
+    /// Another directory load is already in progress for this database instance.
+    #[error("payload database load is already in progress. Fix: wait for the current `load_dir` call to finish before starting another one on the same `PayloadDb`.")]
+    ConcurrentLoad,
 }
 
 impl Serialize for PayloadError {
@@ -623,8 +643,10 @@ impl PayloadError {
             Self::Io(_) => "io",
             Self::ConfigParse { .. } => "config_parse",
             Self::GrammarParse { .. } => "grammar_parse",
+            Self::GrammarValidation { .. } => "grammar_validation",
             Self::TemplateExpansion { .. } => "template_expansion",
             Self::NotADirectory(_) => "not_a_directory",
+            Self::ConcurrentLoad => "concurrent_load",
         }
     }
 
@@ -669,6 +691,18 @@ impl PayloadError {
         };
 
         format!("template expansion error in {file}: {source}. {fix}")
+    }
+
+    fn grammar_validation_message(file: &str, issues: &[GrammarIssue]) -> String {
+        let issue_count = issues.len();
+        let summary = issues
+            .first()
+            .map(|issue| format!("{}: {}", issue.level, issue.message))
+            .unwrap_or_else(|| "unknown validation failure".to_string());
+        format!(
+            "grammar validation error in {file}: {summary}. Fix: resolve the reported validation issue{plural} before loading the grammar.",
+            plural = if issue_count == 1 { "" } else { "s" }
+        )
     }
 }
 

@@ -119,7 +119,13 @@ pub fn apply_encoding(s: &str, transform: &str) -> String {
     apply_url_encoding(s, transform)
         .or_else(|| apply_char_encoding(s, transform))
         .or_else(|| apply_format_encoding(s, transform))
-        .unwrap_or_else(|| s.to_string())
+        .unwrap_or_else(|| {
+            tracing::warn!(
+                transform,
+                "unknown encoding transform requested; returning input unchanged"
+            );
+            s.to_string()
+        })
 }
 
 fn apply_url_encoding(s: &str, transform: &str) -> Option<String> {
@@ -381,6 +387,50 @@ fn base64_encode(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{self, Write};
+    use std::sync::{Arc, Mutex};
+    use tracing_subscriber::fmt::MakeWriter;
+
+    #[derive(Clone, Default)]
+    struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+    struct BufferWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl<'a> MakeWriter<'a> for SharedBuffer {
+        type Writer = BufferWriter;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            BufferWriter(Arc::clone(&self.0))
+        }
+    }
+
+    impl Write for BufferWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn capture_logs<F>(f: F) -> String
+    where
+        F: FnOnce(),
+    {
+        let buffer = SharedBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .without_time()
+            .with_writer(buffer.clone())
+            .finish();
+
+        tracing::subscriber::with_default(subscriber, f);
+
+        let captured = buffer.0.lock().unwrap().clone();
+        String::from_utf8(captured).unwrap()
+    }
 
     #[test]
     fn identity_passthrough() {
@@ -471,6 +521,16 @@ mod tests {
     #[test]
     fn unknown_passthrough() {
         assert_eq!(apply_encoding("test", "unknown_enc"), "test");
+    }
+
+    #[test]
+    fn unknown_encoding_emits_warning() {
+        let logs = capture_logs(|| {
+            assert_eq!(apply_encoding("test", "unknown_enc"), "test");
+        });
+
+        assert!(logs.contains("unknown encoding transform requested"));
+        assert!(logs.contains("unknown_enc"));
     }
 
     #[test]

@@ -5,8 +5,11 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use crate::grammar::{self, ExpandedPayload, Grammar, GrammarExpansionIter};
+use crate::validate::{validate, IssueLevel};
 use crate::{MarkerPosition, Payload, PayloadConfig, PayloadConfigFile, PayloadError};
 
 /// The central payload database. Loads grammars, expands payloads, serves them.
@@ -58,6 +61,9 @@ pub struct PayloadDb {
     /// Custom encoding functions.
     #[serde(skip, default)]
     custom_encodings: HashMap<String, fn(&str) -> String>,
+    /// Guards directory loads so concurrent callers fail explicitly.
+    #[serde(skip, default = "default_load_state")]
+    load_in_progress: Arc<AtomicBool>,
 }
 
 impl PartialEq for PayloadDb {
@@ -91,6 +97,7 @@ impl PayloadDb {
             grammars: HashMap::new(),
             cache: HashMap::new(),
             custom_encodings: HashMap::new(),
+            load_in_progress: default_load_state(),
         }
     }
 
@@ -175,7 +182,11 @@ impl PayloadDb {
         &mut self,
         dir: P,
     ) -> Result<Vec<PayloadError>, PayloadError> {
-        let path = dir.as_ref();
+        let _load_guard = self.begin_load_session()?;
+        self.load_dir_lenient_inner(dir.as_ref())
+    }
+
+    fn load_dir_lenient_inner(&mut self, path: &Path) -> Result<Vec<PayloadError>, PayloadError> {
         if !path.is_dir() {
             return Err(PayloadError::NotADirectory(path.display().to_string()));
         }
@@ -242,6 +253,10 @@ impl PayloadDb {
                 return None;
             }
         };
+        if let Err(error) = self.validate_grammar(&grammar, &file_path.display().to_string()) {
+            errors.push(error);
+            return None;
+        }
         if let Err(source) = grammar::expand(&grammar, &self.custom_encodings) {
             errors.push(PayloadError::TemplateExpansion {
                 file: file_path.display().to_string(),
@@ -289,6 +304,7 @@ impl PayloadDb {
             file: source_name.into(),
             source: Box::new(e),
         })?;
+        self.validate_grammar(&grammar, source_name)?;
         grammar::expand(&grammar, &self.custom_encodings).map_err(|source| {
             PayloadError::TemplateExpansion {
                 file: source_name.into(),
@@ -313,6 +329,32 @@ impl PayloadDb {
         self.grammars.entry(category).or_default().push(grammar);
         self.cache.clear();
         Ok(())
+    }
+
+    fn validate_grammar(&self, grammar: &Grammar, source_name: &str) -> Result<(), PayloadError> {
+        let issues = validate(grammar);
+        let errors: Vec<_> = issues
+            .into_iter()
+            .filter(|issue| issue.level == IssueLevel::Error)
+            .collect();
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(PayloadError::GrammarValidation {
+                file: source_name.to_string(),
+                issues: errors,
+            })
+        }
+    }
+
+    fn begin_load_session(&self) -> Result<LoadSessionGuard, PayloadError> {
+        self.load_in_progress
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .map_err(|_| PayloadError::ConcurrentLoad)?;
+        Ok(LoadSessionGuard {
+            flag: Arc::clone(&self.load_in_progress),
+        })
     }
 
     /// Get all expanded payloads for a category.
@@ -515,6 +557,20 @@ where
     for (key, value) in entries {
         key.hash(state);
         value.hash(state);
+    }
+}
+
+fn default_load_state() -> Arc<AtomicBool> {
+    Arc::new(AtomicBool::new(false))
+}
+
+struct LoadSessionGuard {
+    flag: Arc<AtomicBool>,
+}
+
+impl Drop for LoadSessionGuard {
+    fn drop(&mut self) {
+        self.flag.store(false, Ordering::Release);
     }
 }
 
@@ -1153,8 +1209,44 @@ template = "{broken"
         let errors = db.load_dir_lenient(dir.path()).unwrap();
 
         assert_eq!(errors.len(), 1);
-        assert!(matches!(errors[0], PayloadError::TemplateExpansion { .. }));
+        assert!(matches!(errors[0], PayloadError::GrammarValidation { .. }));
         assert!(db.payloads("dir-cat").is_empty());
+    }
+
+    #[test]
+    fn load_toml_rejects_empty_technique_templates() {
+        let mut db = PayloadDb::new();
+        let error = db
+            .load_toml(
+                r#"
+[grammar]
+name = "invalid"
+sink_category = "dir-cat"
+
+[[techniques]]
+name = "blank"
+template = "   "
+"#,
+            )
+            .unwrap_err();
+
+        match error {
+            PayloadError::GrammarValidation { issues, .. } => {
+                assert!(issues.iter().any(|issue| issue.message.contains("empty template")));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn load_dir_reports_concurrent_loads_explicitly() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = PayloadDb::new();
+        let _guard = db.begin_load_session().unwrap();
+
+        let mut db = db;
+        let error = db.load_dir_lenient(dir.path()).unwrap_err();
+        assert!(matches!(error, PayloadError::ConcurrentLoad));
     }
 
     #[test]

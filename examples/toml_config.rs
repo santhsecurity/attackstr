@@ -27,7 +27,7 @@ value = "localhost"
 
     std::fs::write(
         root.join("attackstr.toml"),
-        &format!(
+        format!(
             r#"
 deduplicate = true
 grammar_dirs = ["{}"]
