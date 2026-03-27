@@ -23,7 +23,7 @@ transform = "reverse"
 "#,
     )?;
 
-    for payload in db.iter_payloads("sqli").filter_map(Result::ok) {
+    for payload in db.iter_payloads("xss").filter_map(Result::ok) {
         println!("{} [{}]", payload.text, payload.encoding);
     }
 

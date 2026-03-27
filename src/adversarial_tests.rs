@@ -236,7 +236,10 @@ template = "payload_b"
         );
 
         // Depth limit is 50, so 100 placeholders may hit it. Either succeeds or errors cleanly.
-        assert!(result.is_ok(), "duplicate technique names should still load");
+        assert!(
+            result.is_ok(),
+            "duplicate technique names should still load"
+        );
         let payloads = db.payloads("dup-cat");
         // Both should be present even with duplicate names
         assert_eq!(
@@ -266,7 +269,10 @@ template = "test{}end"
         );
 
         // Depth limit is 50, so 100 placeholders may hit it. Either succeeds or errors cleanly.
-        assert!(result.is_ok(), "empty placeholder template should load as literal");
+        assert!(
+            result.is_ok(),
+            "empty placeholder template should load as literal"
+        );
         let payloads = db.payloads("empty-cat");
         // Empty braces are treated as literal text
         // Empty braces {} are treated as empty variable name, which gets removed.
@@ -320,7 +326,10 @@ template = "hello\x00world"
         );
         // This should either succeed (if \x00 is treated as literal) or fail cleanly.
         // Either way, no panic.
-        assert!(result.is_err(), "null byte escape should be rejected by TOML parsing");
+        assert!(
+            result.is_err(),
+            "null byte escape should be rejected by TOML parsing"
+        );
     }
 
     // =========================================================================
@@ -545,7 +554,10 @@ sink_category = "empty-cat"
         );
 
         // Depth limit is 50, so 100 placeholders may hit it. Either succeeds or errors cleanly.
-        assert!(result.is_ok(), "empty grammar should load but produce no payloads");
+        assert!(
+            result.is_ok(),
+            "empty grammar should load but produce no payloads"
+        );
         let payloads = db.payloads("empty-cat");
         // Empty grammar produces no payloads
         assert!(payloads.is_empty());
@@ -812,7 +824,10 @@ template = "{{{{{{{{literal_braces}}}}}}}}"
         let mut lookup = HashMap::new();
         lookup.insert("var".to_string(), vec!["{nested}".to_string()]);
         let result = grammar::expand_template("{var}".into(), &lookup);
-        assert!(result.is_ok(), "template expansion with brace-valued variable should succeed");
+        assert!(
+            result.is_ok(),
+            "template expansion with brace-valued variable should succeed"
+        );
         let expanded = result.unwrap();
         // Known limitation: braces in variable values are re-expanded.
         // {nested} becomes empty string because "nested" isnt a known var.
@@ -1033,7 +1048,10 @@ template = "{a}"
                 "sql_char" => "CONCAT()",
                 _ => "",
             };
-            assert_eq!(result, expected, "unexpected empty-input encoding output for {enc}");
+            assert_eq!(
+                result, expected,
+                "unexpected empty-input encoding output for {enc}"
+            );
         }
     }
 

@@ -295,15 +295,20 @@ impl PayloadDb {
     ///
     /// # Errors
     /// Returns a `PayloadError` if reading, parsing, or template expansion fails.
-    pub fn load_reader<R: Read>(&mut self, mut reader: R, source_name: &str) -> Result<(), PayloadError> {
+    pub fn load_reader<R: Read>(
+        &mut self,
+        mut reader: R,
+        source_name: &str,
+    ) -> Result<(), PayloadError> {
         let mut toml_str = String::new();
         reader
             .read_to_string(&mut toml_str)
             .map_err(PayloadError::Io)?;
-        let grammar: Grammar = toml::from_str(&toml_str).map_err(|e| PayloadError::GrammarParse {
-            file: source_name.into(),
-            source: Box::new(e),
-        })?;
+        let grammar: Grammar =
+            toml::from_str(&toml_str).map_err(|e| PayloadError::GrammarParse {
+                file: source_name.into(),
+                source: Box::new(e),
+            })?;
         self.validate_grammar(&grammar, source_name)?;
         grammar::expand(&grammar, &self.custom_encodings).map_err(|source| {
             PayloadError::TemplateExpansion {
@@ -1232,7 +1237,9 @@ template = "   "
 
         match error {
             PayloadError::GrammarValidation { issues, .. } => {
-                assert!(issues.iter().any(|issue| issue.message.contains("empty template")));
+                assert!(issues
+                    .iter()
+                    .any(|issue| issue.message.contains("empty template")));
             }
             other => panic!("unexpected error: {other:?}"),
         }
