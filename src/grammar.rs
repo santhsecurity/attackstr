@@ -168,19 +168,19 @@ pub struct Variable {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, thiserror::Error)]
 pub enum TemplateExpansionError {
     /// A template opened a placeholder but never closed it.
-    #[error("unclosed '{{' in template: {template}")]
+    #[error("unclosed '{{' in template: {template}. Fix: close every '{{' with a matching '}}' and keep braces balanced in all template variables.")]
     UnclosedBrace {
         /// The template fragment that failed.
         template: String,
     },
     /// Recursive variable expansion exceeded the allowed nesting depth.
-    #[error("template expansion exceeded recursion depth limit ({max_depth})")]
+    #[error("template expansion exceeded recursion depth limit ({max_depth}). Fix: reduce recursive variable references or simplify mutually-nesting templates.")]
     RecursionLimitExceeded {
         /// Maximum supported nesting depth.
         max_depth: usize,
     },
     /// Number of generated payloads exceeded the circuit breaker limit.
-    #[error("grammar generated too many payloads (exceeded {limit})")]
+    #[error("grammar generated too many payloads (exceeded {limit}). Fix: reduce the size of variable value sets or lower cartesian expansion breadth.")]
     PayloadLimitExceeded {
         /// The limit that was exceeded.
         limit: usize,

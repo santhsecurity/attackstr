@@ -266,6 +266,8 @@ impl From<Vec<Payload>> for StaticPayloads {
 
 impl PayloadSource for StaticPayloads {
     fn payloads(&mut self, category: &str) -> &[Payload] {
+        sort_payloads_by_category(&mut self.payloads);
+
         let count = self
             .payloads
             .iter()
@@ -611,10 +613,7 @@ impl<'de> Deserialize<'de> for PayloadError {
         }
 
         let wire = PayloadErrorWire::deserialize(deserializer)?;
-        Ok(Self::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            wire.message,
-        )))
+        Ok(Self::Io(std::io::Error::other(wire.message)))
     }
 }
 
