@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use crate::grammar::{Grammar, GrammarMeta};
 
 /// A validation warning or error found in a grammar.
+///
+/// # Thread Safety
+/// `GrammarIssue` is `Send` and `Sync`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GrammarIssue {
     /// The grammar name.
@@ -15,8 +18,18 @@ pub struct GrammarIssue {
     pub message: String,
 }
 
+impl std::fmt::Display for GrammarIssue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.level, self.message)
+    }
+}
+
 /// Severity of a grammar validation issue.
+///
+/// # Thread Safety
+/// `IssueLevel` is `Send` and `Sync`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum IssueLevel {
     /// Problem that will cause incorrect behavior.
     Error,

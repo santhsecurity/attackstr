@@ -18,6 +18,9 @@ use std::path::Path;
 use crate::{MarkerPosition, PayloadConfig, PayloadError};
 
 /// TOML-serializable configuration that loads into [`PayloadConfig`].
+///
+/// # Thread Safety
+/// `PayloadConfigFile` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 #[serde(default)]
 pub struct PayloadConfigFile {
@@ -72,6 +75,7 @@ impl PayloadConfigFile {
     /// # Errors
     ///
     /// Returns an error if the file cannot be read or if the TOML is invalid.
+    #[must_use]
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, PayloadError> {
         let content = std::fs::read_to_string(path.as_ref())?;
         Self::from_toml(&content, path.as_ref().display().to_string())
@@ -90,6 +94,7 @@ impl PayloadConfigFile {
     /// # Errors
     ///
     /// Returns an error if the TOML string is invalid.
+    #[must_use]
     pub fn from_toml(toml_str: &str, source: String) -> Result<Self, PayloadError> {
         toml::from_str(toml_str).map_err(|e| PayloadError::ConfigParse {
             file: source,
@@ -133,6 +138,17 @@ impl PayloadConfigFile {
     #[must_use]
     pub fn grammar_dirs(&self) -> &[String] {
         &self.grammar_dirs
+    }
+}
+
+impl std::fmt::Display for PayloadConfigFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PayloadConfigFile(max_per_category={}, grammar_dirs={})",
+            self.max_per_category,
+            self.grammar_dirs.len()
+        )
     }
 }
 

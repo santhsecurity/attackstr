@@ -14,6 +14,9 @@ use crate::{MarkerPosition, Payload, PayloadConfig, PayloadConfigFile, PayloadEr
 
 /// The central payload database. Loads grammars, expands payloads, serves them.
 ///
+/// # Thread Safety
+/// `PayloadDb` is `Send` and `Sync`.
+///
 /// # Example
 ///
 /// ```rust
@@ -111,6 +114,7 @@ impl PayloadDb {
     ///
     /// # Errors
     /// Returns a `PayloadError` if the initial config file fails to load.
+    #[must_use]
     pub fn load_config_and_grammars<P: AsRef<Path>>(
         config_path: P,
     ) -> Result<(Self, Vec<PayloadError>), PayloadError> {
@@ -376,6 +380,7 @@ impl PayloadDb {
     }
 
     /// Stream payloads for a category without materializing the full category at once.
+    #[must_use]
     pub fn iter_payloads<'a>(
         &'a self,
         category: &'a str,
@@ -398,6 +403,7 @@ impl PayloadDb {
     }
 
     /// Get payload strings only (no metadata) for a category.
+    #[must_use]
     pub fn payload_strings(&mut self, category: &str) -> Vec<String> {
         self.payloads(category)
             .iter()
@@ -406,6 +412,7 @@ impl PayloadDb {
     }
 
     /// Iterate over loaded category names in sorted order.
+    #[must_use]
     pub fn iter_categories(&self) -> impl Iterator<Item = &str> {
         let mut categories: Vec<_> = self.grammars.keys().map(String::as_str).collect();
         categories.sort_unstable();
@@ -415,6 +422,7 @@ impl PayloadDb {
     /// Get all payloads with a taint marker injected.
     ///
     /// Marker placement is controlled by [`crate::PayloadConfig::marker_position`].
+    #[must_use]
     pub fn payloads_with_marker(&mut self, category: &str, marker: &str) -> Vec<Payload> {
         let marker_position = self.config.marker_position.clone();
         self.payloads(category)
@@ -472,6 +480,18 @@ impl PayloadDb {
     }
 }
 
+impl std::fmt::Display for PayloadDb {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PayloadDb(categories={}, grammars={}, cached_categories={})",
+            self.grammars.len(),
+            self.grammar_count(),
+            self.cache.len()
+        )
+    }
+}
+
 impl Default for PayloadDb {
     fn default() -> Self {
         Self::new()
@@ -496,6 +516,10 @@ impl crate::PayloadSource for PayloadDb {
     }
 }
 
+/// Iterator over expanded payloads for a single category.
+///
+/// # Thread Safety
+/// `PayloadIter` is `Send` and `Sync`.
 pub struct PayloadIter<'a> {
     category: &'a str,
     grammars: &'a [Grammar],

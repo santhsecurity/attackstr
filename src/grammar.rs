@@ -7,6 +7,9 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 /// A fully expanded payload candidate before it is converted into a public [`crate::Payload`].
+///
+/// # Thread Safety
+/// `ExpandedPayload` is `Send` and `Sync`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ExpandedPayload {
     /// Final text after template expansion and encoding.
@@ -36,10 +39,23 @@ impl Hash for ExpandedPayload {
     }
 }
 
+impl std::fmt::Display for ExpandedPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}:{}",
+            self.technique, self.context, self.encoding, self.text
+        )
+    }
+}
+
 /// A complete grammar definition loaded from TOML.
 ///
 /// Grammars define the Cartesian product of contexts × techniques × variables × encodings.
 /// The expansion engine iterates all combinations to produce payloads.
+///
+/// # Thread Safety
+/// `Grammar` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct Grammar {
     /// Metadata about this grammar.
@@ -76,7 +92,16 @@ impl Hash for Grammar {
     }
 }
 
+impl std::fmt::Display for Grammar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} -> {}", self.meta.name, self.meta.sink_category)
+    }
+}
+
 /// Metadata about a grammar.
+///
+/// # Thread Safety
+/// `GrammarMeta` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 pub struct GrammarMeta {
     /// Human-readable name (e.g. "sql-injection").
@@ -100,7 +125,16 @@ pub struct GrammarMeta {
     pub target_runtime: Option<Vec<String>>,
 }
 
+impl std::fmt::Display for GrammarMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.name, self.sink_category)
+    }
+}
+
 /// An injection context — defines prefix/suffix that break out of a data context.
+///
+/// # Thread Safety
+/// `Context` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 pub struct Context {
     /// Name of this context (e.g. "string-break", "numeric").
@@ -112,10 +146,19 @@ pub struct Context {
     pub suffix: String,
 }
 
+impl std::fmt::Display for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name)
+    }
+}
+
 /// An attack technique — a template string with variable placeholders.
 ///
 /// Placeholders use `{var_name}` syntax. The special variables `{prefix}` and
 /// `{suffix}` are replaced with the current context's prefix/suffix.
+///
+/// # Thread Safety
+/// `Technique` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Technique {
     /// Name of this technique (e.g. "union-based", "time-based").
@@ -148,7 +191,16 @@ impl Hash for Technique {
     }
 }
 
+impl std::fmt::Display for Technique {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.name)
+    }
+}
+
 /// An encoding transform applied to the final payload.
+///
+/// # Thread Safety
+/// `Encoding` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 pub struct Encoding {
     /// Name of this encoding (e.g. "url-encode", "hex").
@@ -157,15 +209,34 @@ pub struct Encoding {
     pub transform: String,
 }
 
+impl std::fmt::Display for Encoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", self.name, self.transform)
+    }
+}
+
 /// A variable substitution value.
+///
+/// # Thread Safety
+/// `Variable` is `Send` and `Sync`.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, Hash)]
 pub struct Variable {
     /// The literal value to substitute.
     pub value: String,
 }
 
+impl std::fmt::Display for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.value)
+    }
+}
+
 /// Errors returned while expanding template placeholders.
+///
+/// # Thread Safety
+/// `TemplateExpansionError` is `Send` and `Sync`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, thiserror::Error)]
+#[non_exhaustive]
 pub enum TemplateExpansionError {
     /// A template opened a placeholder but never closed it.
     #[error("unclosed '{{' in template: {template}. Fix: close every '{{' with a matching '}}' and keep braces balanced in all template variables.")]
@@ -195,6 +266,7 @@ const MAX_TEMPLATE_RECURSION_DEPTH: usize = 50;
 /// `for each context × technique × variable_combination × encoding`
 ///
 /// Returns expanded payload records with generation metadata.
+#[must_use]
 pub fn expand(
     grammar: &Grammar,
     custom_encodings: &HashMap<String, fn(&str) -> String>,

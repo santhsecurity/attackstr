@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 /// Implement this trait to create custom encoders that can be used
 /// with the attackstr encoding system.
 ///
+/// # Thread Safety
+/// This trait does not require `Send` or `Sync`. Thread-safety depends on the
+/// concrete implementing type.
+///
 /// # Example
 ///
 /// ```rust
@@ -49,6 +53,9 @@ where
 /// This is useful for creating encoders from closures or function pointers
 /// without defining a new type.
 ///
+/// # Thread Safety
+/// `CustomEncoder` is `Send` and `Sync`.
+///
 /// # Example
 ///
 /// ```rust
@@ -72,6 +79,7 @@ impl CustomEncoder {
     /// let encoder = CustomEncoder::new(|value| value.to_uppercase());
     /// assert_eq!(encoder.encode("xss"), "XSS");
     /// ```
+    #[must_use]
     pub const fn new(func: fn(&str) -> String) -> Self {
         Self { func }
     }
@@ -100,6 +108,12 @@ impl std::fmt::Debug for CustomEncoder {
 impl Default for CustomEncoder {
     fn default() -> Self {
         Self::new(std::string::ToString::to_string)
+    }
+}
+
+impl std::fmt::Display for CustomEncoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CustomEncoder(..)")
     }
 }
 
@@ -246,7 +260,11 @@ fn css_escape(s: &str) -> String {
 }
 
 /// All built-in encoding names, for documentation and validation.
+///
+/// # Thread Safety
+/// `BuiltinEncoding` is `Send` and `Sync`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum BuiltinEncoding {
     /// No encoding.
     Identity,

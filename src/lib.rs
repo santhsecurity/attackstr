@@ -96,6 +96,10 @@ pub use validate::{validate, GrammarIssue, IssueLevel};
 /// This trait abstracts over different payload storage and generation
 /// strategies, allowing users to swap implementations.
 ///
+/// # Thread Safety
+/// This trait does not require `Send` or `Sync`. Thread-safety depends on the
+/// concrete implementing type.
+///
 /// # Example
 ///
 /// ```rust
@@ -122,6 +126,9 @@ pub trait PayloadSource {
 ///
 /// This is useful for users who generate payloads externally and want
 /// to use them with the attackstr ecosystem.
+///
+/// # Thread Safety
+/// `StaticPayloads` is `Send` and `Sync`.
 ///
 /// # Example
 ///
@@ -232,6 +239,7 @@ impl StaticPayloads {
     /// let source = StaticPayloads::default();
     /// assert_eq!(source.iter().count(), 0);
     /// ```
+    #[must_use]
     pub fn iter(&self) -> impl Iterator<Item = &Payload> {
         self.payloads.iter()
     }
@@ -255,6 +263,7 @@ impl StaticPayloads {
     /// }]);
     /// assert_eq!(source.iter_category("xss").count(), 1);
     /// ```
+    #[must_use]
     pub fn iter_category<'a>(
         &'a self,
         category: &'a str,
@@ -262,6 +271,12 @@ impl StaticPayloads {
         self.payloads
             .iter()
             .filter(move |payload| payload.category == category)
+    }
+}
+
+impl std::fmt::Display for StaticPayloads {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "StaticPayloads(count={})", self.payloads.len())
     }
 }
 
@@ -317,6 +332,9 @@ fn build_category_ranges(payloads: &[Payload]) -> BTreeMap<String, std::ops::Ran
 }
 
 /// Configuration for payload generation behavior.
+///
+/// # Thread Safety
+/// `PayloadConfig` is `Send` and `Sync`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PayloadConfig {
     /// Maximum payloads per category before truncation (0 = unlimited).
@@ -366,6 +384,7 @@ impl PayloadConfig {
     ///
     /// # Errors
     /// Returns a [`PayloadError`] if reading or parsing the file fails.
+    #[must_use]
     pub fn load<P: AsRef<std::path::Path>>(path: P) -> Result<Self, PayloadError> {
         Ok(PayloadConfigFile::load(path)?.into_config())
     }
@@ -382,8 +401,19 @@ impl PayloadConfig {
     ///
     /// # Errors
     /// Returns a [`PayloadError`] if parsing the TOML fails.
+    #[must_use]
     pub fn from_toml(toml_str: &str, source: impl Into<String>) -> Result<Self, PayloadError> {
         Ok(PayloadConfigFile::from_toml(toml_str, source.into())?.into_config())
+    }
+}
+
+impl std::fmt::Display for PayloadConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PayloadConfig(max_per_category={}, deduplicate={}, marker_position={})",
+            self.max_per_category, self.deduplicate, self.marker_position
+        )
     }
 }
 
@@ -402,7 +432,11 @@ impl Default for PayloadConfig {
 }
 
 /// Placement strategy for marker-injected payloads.
+///
+/// # Thread Safety
+/// `MarkerPosition` is `Send` and `Sync`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum MarkerPosition {
     /// Prepend the marker to the payload text.
     Prefix,
@@ -426,9 +460,18 @@ impl std::fmt::Display for MarkerPosition {
 }
 
 /// Builder for [`PayloadConfig`].
+///
+/// # Thread Safety
+/// `PayloadConfigBuilder` is `Send` and `Sync`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct PayloadConfigBuilder {
     config: PayloadConfig,
+}
+
+impl std::fmt::Display for PayloadConfigBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PayloadConfigBuilder({})", self.config)
+    }
 }
 
 impl PayloadConfigBuilder {
@@ -508,6 +551,9 @@ fn sort_payloads_by_category(payloads: &mut [Payload]) {
 }
 
 /// A generated payload with metadata about its origin.
+///
+/// # Thread Safety
+/// `Payload` is `Send` and `Sync`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Payload {
     /// The payload string.
@@ -562,8 +608,22 @@ impl Hash for Payload {
     }
 }
 
+impl std::fmt::Display for Payload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}:{}:{}:{}",
+            self.category, self.technique, self.context, self.text
+        )
+    }
+}
+
 /// Errors from payload operations.
+///
+/// # Thread Safety
+/// `PayloadError` is `Send` and `Sync`.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum PayloadError {
     /// Failed to read a file.
     #[error("{0}. Fix: verify the file or directory exists and that the current process has permission to read it.")]
