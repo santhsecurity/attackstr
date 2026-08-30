@@ -121,7 +121,7 @@ Pull requests are welcome. There is no such thing as a perfect crate. If you fin
 
 ## License
 
-MIT. Copyright 2026 CORUM COLLECTIVE LLC. Contact: contact@santh.dev
+MIT. Copyright 2026 Santh. Contact: contact@santh.dev
 
 [![crates.io](https://img.shields.io/crates/v/attackstr.svg)](https://crates.io/crates/attackstr)
 [![docs.rs](https://docs.rs/attackstr/badge.svg)](https://docs.rs/attackstr)
